@@ -81,7 +81,7 @@ void PacketManager::SendPacketsWorker()
 			{
 				std::lock_guard<std::mutex> lock(mtx);
 				// print the packet details for debug
-				std::cout << "Send packet priority:" << std::endl;
+				//std::cout << "Send packet priority:" << std::endl;
 				//BandwidthPriority::Log::PrintHeaderDetails(*priorityQue.back());
 				// print the path for debug
 				//std::wcout << L"Path: " << priorityQue.back()->GetProcessPath() << std::endl;
@@ -93,7 +93,7 @@ void PacketManager::SendPacketsWorker()
 			{
 				std::lock_guard<std::mutex> lock(mtx);
 				// print the packet details for debug
-				std::cout << "Send packet normal:" << std::endl;
+				//std::cout << "Send packet normal:" << std::endl;
 				//BandwidthPriority::Log::PrintHeaderDetails(*normalQue.back());
 				// print the path for debug
 				//std::wcout << L"Path: " << normalQue.back()->GetProcessPath() << std::endl;

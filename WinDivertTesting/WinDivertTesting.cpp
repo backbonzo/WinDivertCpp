@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <string.h>
 #include "windivert.h"
+#include "DivertManager.h"
 #include <iostream>
 
 #define MAXBUF 0xFFFF
@@ -14,59 +15,76 @@ typedef struct
 	WINDIVERT_TCPHDR tcp;
 } TCPPACKET, * PTCPPACKET;
 
+
 int main(int argc, char* argv[])
 {
-	HANDLE handle;
-	INT16 priority = 0;
-	PVOID pPacket[MAXBUF];
-	WINDIVERT_ADDRESS addr;
-	UINT len;
+	//INT16 priority = 0;
+	//HANDLE handle;          // WinDivert handle
+	//WINDIVERT_ADDRESS addr; // Packet address
+	//char packet[MAXBUF];    // Packet buffer
+	//UINT packetLen;
+	//PWINDIVERT_IPHDR ipHdr;
+	//PWINDIVERT_TCPHDR tcpHr;
+	//PWINDIVERT_UDPHDR udpHDR;
 
-	handle = WinDivertOpen("true", WINDIVERT_LAYER_FLOW, priority, 0);
-	if (handle == INVALID_HANDLE_VALUE)
-	{
-		printf("error : WinDivertOpen()\n");
-		return 0;
-	}
+	//handle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK, priority, WINDIVERT_FLAG_RECV_ONLY||WINDIVERT_FLAG_SEND_ONLY);
+	//if (handle == INVALID_HANDLE_VALUE)
+	//{
+	//	printf("error : WinDivertOpen()\n");
+	//	return 0;
+	//}
 
-	while (true)
-	{
-		//std::cout << WinDivertRecv(handle, pPacket, sizeof(pPacket), &len, &addr) << "\n";
+	DivertManager dm("chrome.exe", true);
 
-		if (!WinDivertRecv(handle, pPacket, sizeof(pPacket), &len, &addr))
-		{
-			printf("error : WinDivertRecv()\n");
-			continue;
-		}
+	//while (true)
+	//{
 
-		std::cout << "Packet: " << pPacket << std::endl;
-		std::cout << std::endl;
-		PTCPPACKET tcp = (TCPPACKET*)pPacket;
-		std::cout << "tcp: " << tcp << std::endl;
-		std::cout << std::endl;
+		dm.startThreads();
+		int yea;
+		std::cin >> yea;
 
-		/*
-		if (tcp->ip.Protocol == 0x06)	//When the TCP packet
-		{
-			if (ntohs(tcp->tcp.SrcPort) == 80 || ntohs(tcp->tcp.DstPort) == 80)		//When the port number is 80, try to drop the packet
-			{
+		dm.~DivertManager();
+		////std::cout << WinDivertRecv(handle, pPacket, sizeof(pPacket), &len, &addr) << "\n";
 
-				printf("   >>> [Drop the packet] <<<<\n");
-				printf("   >> Block DstPort : %d\n", ntohs(tcp->tcp.DstPort));
-				printf("   >> Block SrcPort : %d\n", ntohs(tcp->tcp.SrcPort));
-				printf("\n");
-				continue;
-			}
-			continue;
-		}
-		*/
+	//	if (!WinDivertRecv(handle, packet, sizeof(packet), &packetLen, &addr))
+	//	{
+	//		printf("error : WinDivertRecv()\n");
+	//		continue;
+	//	}
 
-		if (!WinDivertSend(handle, pPacket, len, &len, &addr))
-		{
-			printf("error : WinDviertSend()\n");
-			continue;
-		}
-	}
+	//	//char RemoteAddr[128];
+	//	//char LocalAddr[128];
+	//	//WinDivertHelperFormatIPv4Address(WinDivertHelperNtohl(WinDivertHelperNtohl(*(addr.Flow.RemoteAddr))), RemoteAddr, sizeof(RemoteAddr));
+	//	//WinDivertHelperFormatIPv4Address(WinDivertHelperNtohl(WinDivertHelperNtohl(*(addr.Flow.LocalAddr))), LocalAddr, sizeof(LocalAddr));
+
+	//	//std::cout << "pid: " << addr.Flow.ProcessId << ", srcPort: " << addr.Flow.LocalPort << " srcAddr:" << LocalAddr << ", dstPort: " << addr.Flow.RemotePort << " dstAddr:" << RemoteAddr << std::endl;
+	//	char buffer[128];
+	//	WinDivertHelperParsePacket(&packet, packetLen, &ipHdr, NULL, NULL,
+	//								NULL, NULL, &tcpHr, &udpHDR, NULL,
+	//								NULL, NULL, NULL);
+
+	//	if (tcpHr == NULL) {
+	//		if (!WinDivertSend(handle, packet, packetLen, &packetLen, &addr))
+	//		{
+	//			printf("error : WinDviertSend()\n");
+	//			continue;
+	//		}
+	//		continue;
+	//	}
+
+
+	//	WinDivertHelperFormatIPv4Address(WinDivertHelperNtohl(ipHdr->DstAddr), buffer, sizeof(buffer));
+
+	//	std::cout << ntohs(tcpHr->SrcPort) << std::endl;
+
+
+	//	if (!WinDivertSend(handle, packet, packetLen, &packetLen, &addr))
+	//	{
+	//		printf("error : WinDviertSend()\n");
+	//		continue;
+	//	}
+
+	//}
 
 	return 0;
 }
