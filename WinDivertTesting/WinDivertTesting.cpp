@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
 		int yea;
 		std::cin >> yea;
 
-		dm.~DivertManager();
+		//dm.~DivertManager();
 		////std::cout << WinDivertRecv(handle, pPacket, sizeof(pPacket), &len, &addr) << "\n";
 
 	//	if (!WinDivertRecv(handle, packet, sizeof(packet), &packetLen, &addr))
