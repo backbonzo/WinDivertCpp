@@ -22,7 +22,7 @@ DivertManager::~DivertManager() {
 
 void DivertManager::startThreads() {
 
-    mainHandle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_RECV_ONLY || WINDIVERT_FLAG_SEND_ONLY);
+    mainHandle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK, 0, 0);
 
     if (mainHandle == INVALID_HANDLE_VALUE)
     {
