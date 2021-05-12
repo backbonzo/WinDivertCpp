@@ -3,7 +3,7 @@
 
 struct Header
 {
-	Header(const Packet& packet);
+	Header(const netData& packet);
 
 	std::string GetSource();
 	std::string GetDestination();
@@ -35,8 +35,8 @@ public:
 	
 	bool IsInitialized() const;
 	std::unique_ptr<WINDIVERT_ADDRESS> GetPacketAddress() const;
-	std::unique_ptr<Packet> GetPacket();
-	bool SendPacket(Packet& packet);
+	std::unique_ptr<netData> GetPacket();
+	bool SendPacket(netData& packet);
 	WINDIVERT_LAYER GetLayer() const;
 
 	static std::string GetIPAddress(UINT32 address);

@@ -48,7 +48,7 @@ private:
 	std::string prioProcName;
 	bool th_running = true;
 	HANDLE mainHandle;
-	std::queue<std::unique_ptr<netData>> normalPacketQueue, HighPrioPacketQueue;
+	std::queue<netData> normalPacketQueue, HighPrioPacketQueue;
 	std::map<UINT32, bool> listOfPorts;
 	int counter = 0, resetAt = 500;
 };

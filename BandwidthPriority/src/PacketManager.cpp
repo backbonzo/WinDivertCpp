@@ -52,12 +52,12 @@ void PacketManager::GetPacketsWorker(std::string filter)
 			if (PacketIsFromPriority(*packet))
 			{
 				std::lock_guard<std::mutex> lock(mtx);
-				priorityQue.push_back(std::move(packet));
+				priorityQue.push(std::move(packet));
 			}
 			else
 			{
 				std::lock_guard<std::mutex> lock(mtx);
-				normalQue.push_back(std::move(packet));
+				normalQue.push(std::move(packet));
 			}
 		}
 		using namespace BandwidthPriority;

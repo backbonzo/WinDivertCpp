@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
 	//	return 0;
 	//}
 
-	DivertManager dm("chrome.exe", true);
+	DivertManager dm("discord.exe", true);
 
 	//while (true)
 	//{

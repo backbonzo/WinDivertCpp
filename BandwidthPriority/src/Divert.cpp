@@ -60,7 +60,7 @@ std::unique_ptr<WINDIVERT_ADDRESS> Divert::GetPacketAddress() const
 	return std::move(address);
 }
 
-std::unique_ptr<Packet> Divert::GetPacket()
+std::unique_ptr<netData> Divert::GetPacket()
 {
 	/*BOOL WinDivertRecv(
 	__in HANDLE handle,
@@ -69,10 +69,10 @@ std::unique_ptr<Packet> Divert::GetPacket()
 		__out_opt UINT* pRecvLen,
 		__out_opt WINDIVERT_ADDRESS* pAddr
 		);*/
-	auto packet = std::make_unique<Packet>();
+	auto packet = std::make_unique<netData>();
 	if (layer == WINDIVERT_LAYER_FLOW)
 	{
-		if (!WinDivertRecv(divertHandle, nullptr, 0, nullptr, &packet->address))
+		if (!WinDivertRecv(divertHandle, nullptr, 0, nullptr, &packet->addr))
 		{
 			using namespace BandwidthPriority;
 			Log::log(LogLevel::Error, "Failed to receive packet.");
@@ -82,33 +82,33 @@ std::unique_ptr<Packet> Divert::GetPacket()
 		// Set source and destination based on outbound
 		const UINT32* src, * dest;
 		UINT16 srcPort, destPort;
-		if (packet->address.Outbound == 1)
+		if (packet->addr.Outbound == 1)
 		{
-			src = packet->address.Flow.LocalAddr;
-			dest = packet->address.Flow.RemoteAddr;
+			src = packet->addr.Flow.LocalAddr;
+			dest = packet->addr.Flow.RemoteAddr;
 
-			srcPort = packet->address.Flow.LocalPort;
-			destPort = packet->address.Flow.RemotePort;
+			srcPort = packet->addr.Flow.LocalPort;
+			destPort = packet->addr.Flow.RemotePort;
 		}
 		else
 		{
-			src = packet->address.Flow.RemoteAddr;
-			dest = packet->address.Flow.LocalAddr;
+			src = packet->addr.Flow.RemoteAddr;
+			dest = packet->addr.Flow.LocalAddr;
 
-			srcPort = packet->address.Flow.RemotePort;
-			destPort = packet->address.Flow.LocalPort;
+			srcPort = packet->addr.Flow.RemotePort;
+			destPort = packet->addr.Flow.LocalPort;
 		}
-		packet->networkData.tuple.srcAddress = GetIPAddress(src);
-		packet->networkData.tuple.srcPort = srcPort;
-		packet->networkData.tuple.dstAddress = GetIPAddress(dest);
-		packet->networkData.tuple.dstPort = destPort;
-		packet->networkData.tuple.protocol = packet->address.Flow.Protocol;
+		packet->src = GetIPAddress(src);
+		packet->srcPort = srcPort;
+		packet->dst = GetIPAddress(dest);
+		packet->dstPort = destPort;
+		packet->protocol = packet->addr.Flow.Protocol;
 		// Set processID
-		packet->SetProcessId(packet->address.Flow.ProcessId);
+		packet->ProcessId = packet->addr.Flow.ProcessId;
 	}
 	else if (layer == WINDIVERT_LAYER_NETWORK)
 	{
-		if (!WinDivertRecv(divertHandle, packet->packetData, sizeof(packet->packetData), &packet->packetLength, &packet->address))
+		if (!WinDivertRecv(divertHandle, packet->packet, sizeof(packet->packet), &packet->packetLen, &packet->addr))
 		{
 			using namespace BandwidthPriority;
 			Log::log(LogLevel::Error, "Failed to receive packet.");
@@ -116,17 +116,17 @@ std::unique_ptr<Packet> Divert::GetPacket()
 		}
 		Header header(*packet);
 
-		packet->networkData.tuple.srcAddress = header.GetSource();
-		packet->networkData.tuple.srcPort = header.GetSourcePort();
-		packet->networkData.tuple.dstAddress = header.GetDestination();
-		packet->networkData.tuple.dstPort = header.GetDestinationPort();
-		packet->networkData.tuple.protocol = header.protocol;
+		packet->src = header.GetSource();
+		packet->srcPort = header.GetSourcePort();
+		packet->dst = header.GetDestination();
+		packet->dstPort = header.GetDestinationPort();
+		packet->protocol = header.protocol;
 	}
 	
 	return std::move(packet);
 }
 
-bool Divert::SendPacket(Packet& packet)
+bool Divert::SendPacket(netData& packet)
 {
 	/*BOOL WinDivertSend(
 		__in HANDLE handle,
@@ -137,7 +137,7 @@ bool Divert::SendPacket(Packet& packet)
 	);*/
 	if (layer == WINDIVERT_LAYER_NETWORK || layer == WINDIVERT_LAYER_NETWORK_FORWARD)
 	{
-		if (!WinDivertSend(divertHandle, packet.packetData, packet.packetSize, &packet.packetLength, &packet.address))
+		if (!WinDivertSend(divertHandle, packet.packet, sizeof(packet.packet), &packet.packetLen, &packet.addr))
 		{
 			using namespace BandwidthPriority;
 			Log::log(LogLevel::Error, "Failed to reinject packet");
@@ -223,7 +223,7 @@ void Divert::LogError(const DWORD& errorCode) const
 	}
 }
 
-Header::Header(const Packet& packet)
+Header::Header(const netData& packet)
 {
 	//BOOL WinDivertHelperParsePacket(
 	//	__in PVOID pPacket,
@@ -240,7 +240,7 @@ Header::Header(const Packet& packet)
 	//	__out_opt PVOID * ppNext,
 	//	__out_opt UINT * pNextLen
 	//);
-	WinDivertHelperParsePacket(packet.GetData(), packet.GetLength(), &ip_header, &ipv6_header, &protocol,
+	WinDivertHelperParsePacket(packet.packet, packet.packetLen, &ip_header, &ipv6_header, &protocol,
 		&icmp_header, &icmpv6_header, &tcp_header, &udp_header, NULL, NULL, NULL, NULL);
 }
 

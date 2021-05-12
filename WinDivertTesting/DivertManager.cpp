@@ -22,13 +22,6 @@ DivertManager::~DivertManager() {
 
 void DivertManager::startThreads() {
 
-    mainHandle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK, 0, 0);
-
-    if (mainHandle == INVALID_HANDLE_VALUE)
-    {
-        std::cerr << ("error : WinDivertOpen()\n");
-        return;
-    }
 
     th_reqWorker = std::thread(&DivertManager::packetsRequester, this);
     this->th_reqWorker.detach();
@@ -56,17 +49,27 @@ void DivertManager::resetData(netData& data) {
 
 void DivertManager::filterPacketIntoQueues() {
 
+    HANDLE RECVHND = WinDivertOpen("remotePort != 53", WINDIVERT_LAYER_NETWORK, 50, WINDIVERT_FLAG_RECV_ONLY);
+
+    if (RECVHND == INVALID_HANDLE_VALUE)
+    {
+        std::cerr << ("error : WinDivertOpen()\n");
+        return;
+    }
+
     while (th_running) {
 
-        if (!WinDivertRecv(mainHandle, recvData.packet, sizeof(recvData.packet), &recvData.packetLen, &recvData.addr))
+        netData packet;
+
+        if (!WinDivertRecv(RECVHND, packet.packet, sizeof(packet.packet), &packet.packetLen, &packet.addr))
         {
             std::cerr << ("error : WinDivertRecv()\n");
             continue;
         }
 
-        WinDivertHelperParsePacket(recvData.packet, recvData.packetLen, &recvData.ip_header, &recvData.ipv6_header,
-            &recvData.protocol, &recvData.icmp_header, &recvData.icmpv6_header,
-            &recvData.tcp_header, &recvData.udp_header,
+        WinDivertHelperParsePacket(packet.packet, packet.packetLen, &packet.ip_header, &packet.ipv6_header,
+            &packet.protocol, &packet.icmp_header, &packet.icmpv6_header,
+            &packet.tcp_header, &packet.udp_header,
             NULL, NULL, NULL, NULL);
 
         
@@ -80,25 +83,26 @@ void DivertManager::filterPacketIntoQueues() {
 
         UINT32 tempPort = -1;
         
-        if(recvData.tcp_header != NULL){
-            if (recvData.addr.Outbound || recvData.addr.Loopback)
-                tempPort = ntohs(recvData.tcp_header->SrcPort);
+        if(packet.tcp_header != NULL) {
+            if (packet.addr.Outbound || packet.addr.Loopback)
+                tempPort = ntohs(packet.tcp_header->SrcPort);
             else
-                tempPort = ntohs(recvData.tcp_header->DstPort);
-        } else if (recvData.udp_header != NULL) {
-            if (recvData.addr.Outbound || recvData.addr.Loopback)
-                tempPort = ntohs(recvData.udp_header->SrcPort);
+                tempPort = ntohs(packet.tcp_header->DstPort);
+        }
+        else if (packet.udp_header != NULL) {
+            if (packet.addr.Outbound || packet.addr.Loopback)
+                tempPort = ntohs(packet.udp_header->SrcPort);
             else
-                tempPort = ntohs(recvData.udp_header->DstPort);
+                tempPort = ntohs(packet.udp_header->DstPort);
         }
 
         if(tempPort != -1 && listOfPorts[tempPort]){
             Mutex.lock();
-            HighPrioPacketQueue.push(std::move(std::unique_ptr<netData>(new netData(recvData))));
+            HighPrioPacketQueue.push(packet);
             Mutex.unlock();
         } else {
             Mutex.lock();
-            normalPacketQueue.push(std::move(std::unique_ptr<netData>(new netData(recvData))));
+            normalPacketQueue.push(packet);
             Mutex.unlock();
         }
     }
@@ -107,37 +111,46 @@ void DivertManager::filterPacketIntoQueues() {
 
 void DivertManager::sendPacketFromQueues() {
 
-    while (th_running) {
-        Mutex.lock();
-        while(!HighPrioPacketQueue.empty() && th_running){
+    HANDLE SENDHND = WinDivertOpen("remotePort != 53", WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SEND_ONLY);
 
-            
-            std::unique_ptr<netData> temp = std::move(HighPrioPacketQueue.front());
+    if (SENDHND == INVALID_HANDLE_VALUE)
+    {
+        std::cerr << ("error : WinDivertOpen()\n");
+        return;
+    }
+
+    while (th_running) {
+        while(!HighPrioPacketQueue.empty()){
+
+            Mutex.lock();
+            netData temp =HighPrioPacketQueue.front();
             HighPrioPacketQueue.pop();
-            
-            std::cout << "sending prio\r\n";
-            if (!WinDivertSend(mainHandle, (*temp).packet, (*temp).packetLen, &(*temp).packetLen, &(*temp).addr))
+            Mutex.unlock();
+
+            //std::cout << "sending prio\r\n";
+            if (!WinDivertSend(SENDHND, (temp).packet, (temp).packetLen, &(temp).packetLen, &(temp).addr))
             {
         	    printf("error : WinDviertSend()\n");
         	    continue;
             }
 
         }
-        while (!normalPacketQueue.empty() && th_running) {
+        while(!normalPacketQueue.empty() && HighPrioPacketQueue.empty()) {
 
-            std::cout << "sending normal\r\n";
-            std::unique_ptr<netData> temp = std::move(normalPacketQueue.front());
+            //std::cout << "sending normal\r\n";
+            Mutex.lock();
+            netData temp =normalPacketQueue.front();
             normalPacketQueue.pop();
+            Mutex.unlock();
 
-
-            if (!WinDivertSend(mainHandle, (*temp).packet, (*temp).packetLen, &(*temp).packetLen, &(*temp).addr))
+            if (!WinDivertSend(SENDHND, (temp).packet, (temp).packetLen, &(temp).packetLen, &(temp).addr))
             {
                 printf("error : WinDviertSend()\n");
                 continue;
             }
 
         }
-        Mutex.unlock();
+        
 
     }
 
@@ -173,7 +186,7 @@ void DivertManager::packetsRequester() {
 
         }
         if (counter > resetAt) {
-            std::cout << temp << "reseted " <<"\r\n";
+            //std::cout << temp << "reseted " <<"\r\n";
             counter = 0;
             listOfPorts.clear();
         }

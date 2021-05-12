@@ -2,6 +2,10 @@
 #include "Divert.h"
 #include "WindowsHelper.h"
 #include "Packet.h"
+#include <vector>
+#include <queue>
+
+#define MAXBUF 0xFFFF
 
 // Hash_combine out of boost library
 template <class T>
@@ -29,6 +33,9 @@ namespace std
 		}
 	};
 }
+
+
+
 
 class PacketManager
 {
@@ -59,8 +66,8 @@ private:
 	// To get paths and tables
 	WindowsHelper windows;
 	// Divert send ques
-	std::vector<std::unique_ptr<Packet>> priorityQue;
-	std::vector<std::unique_ptr<Packet>> normalQue;
+	std::queue<std::unique_ptr<netData>> priorityQue;
+	std::queue<std::unique_ptr<netData>> normalQue;
 	// For threading
 	std::mutex mtx;
 	bool stopThreads = false;

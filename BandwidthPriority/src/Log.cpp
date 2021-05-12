@@ -103,7 +103,7 @@ void BandwidthPriority::Log::PrintLog(LogLevel threshold)
 
 // Print packet details for debug/visualization
 
-void BandwidthPriority::Log::PrintHeaderDetails(const Packet& packet)
+void BandwidthPriority::Log::PrintHeaderDetails(const netData& packet)
 {
 	Header header(packet);
 

@@ -23,7 +23,7 @@ namespace BandwidthPriority
 		static void PrintLog(LogLevel threshold);
 
 		// Print packet details for debug/visualization
-		static void PrintHeaderDetails(const Packet& packet);
+		static void PrintHeaderDetails(const netData& packet);
 		static void PrintAddressDetails(const WINDIVERT_ADDRESS& address);
 		static void PrintNetworkTuple(const NetworkTuple& tuple);
 	/*private:
