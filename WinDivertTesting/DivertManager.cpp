@@ -177,19 +177,19 @@ void DivertManager::packetsRequester() {
 
 
         std::string temp = getProcessNameByPid(reqData.addr.Flow.ProcessId);
-        //std::cout << temp << " " << temp.length() <<"\r\n";
+        std::cout << temp <<"\r\n";
 
         if (temp == prioProcName){ 
-            
+            std::cout << reqData.addr.Flow.LocalPort << " found"<< "\r\n";
             listOfPorts[reqData.addr.Flow.LocalPort] = true;
 
 
         }
-        if (counter > resetAt) {
-            //std::cout << temp << "reseted " <<"\r\n";
-            counter = 0;
-            listOfPorts.clear();
-        }
+        //if (counter > resetAt) {
+        //    std::cout << temp << "reseted " <<"\r\n";
+        //    counter = 0;
+        //    listOfPorts.clear();
+        //}
         //char RemoteAddr[128];
         //char LocalAddr[128];
         //WinDivertHelperFormatIPv4Address(WinDivertHelperNtohl(WinDivertHelperNtohl(*(reqData.addr.Flow.RemoteAddr))), RemoteAddr, sizeof(RemoteAddr));
@@ -209,33 +209,31 @@ void DivertManager::packetsRequester() {
 
 std::string DivertManager::getProcessNameByPid(UINT32 pid) {
 
-    std::string res = "";
-    std::vector<char> tempVect;
-
-    HANDLE Handle = OpenProcess(
-        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+    std::string ret;
+    HANDLE handle = OpenProcess(
+        PROCESS_QUERY_INFORMATION,
         FALSE,
         pid /* This is the PID, you can find one from windows task manager */
     );
-    if (Handle)
+    if (handle)
     {
-        
-        WCHAR Buffer[MAX_PATH];
-        if (GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH))
+        DWORD buffSize = 1024;
+        CHAR buffer[1024];
+        if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
         {
+            ret = buffer;
             std::size_t startF = std::string::npos;
             std::size_t exePos = std::string::npos;
             std::size_t diff = 0;
 
-            // At this point, buffer contains the full path to the executable
             for (int i = 0; i < MAX_PATH; i++) {
 
-                if ((char)Buffer[i] == '\\') {
+                if ((char)buffer[i] == '\\') {
 
                     startF = i;
                 }
 
-                if ( MAX_PATH >= i+3 && (char)Buffer[i] == '.' && (char)Buffer[i+1] == 'e' && (char)Buffer[i+2] == 'x' && (char)Buffer[i+3] == 'e'){
+                if ( MAX_PATH >= i+3 && (char)buffer[i] == '.' && (char)buffer[i+1] == 'e' && (char)buffer[i+2] == 'x' && (char)buffer[i+3] == 'e'){
 
                     exePos = i;
                     break;
@@ -246,11 +244,11 @@ std::string DivertManager::getProcessNameByPid(UINT32 pid) {
                 diff = exePos - startF;
 
                 //std::cout << "startF " << startF <<" exepos: " << exePos << " diff " << diff << "\r\n";
-
+                ret = "";
                 for (int i = startF+1; i <= startF+diff+3; i++)
                 {
                     //std::cout << (char)Buffer[i];
-                    res.push_back((char)Buffer[i]);
+                    ret.push_back((char)buffer[i]);
                 }
 
                 //std::cout << "\r\n";
@@ -258,12 +256,79 @@ std::string DivertManager::getProcessNameByPid(UINT32 pid) {
             }
 
 
+
         }
         else
         {
-            // You better call GetLastError() here
+            //printf("Error GetModuleBaseNameA : %lu", GetLastError());
         }
-        CloseHandle(Handle);
+        CloseHandle(handle);
     }
-    return res;
+    else
+    {
+        //printf("Error OpenProcess : %lu", GetLastError());
+    }
+    return ret;
+
+    //std::string res = "";
+    //std::vector<char> tempVect;
+
+    //HANDLE Handle = OpenProcess(
+    //    PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+    //    FALSE,
+    //    pid /* This is the PID, you can find one from windows task manager */
+    //);
+    //if (Handle)
+    //{
+    //    
+    //    WCHAR Buffer[MAX_PATH];
+    //    if (GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH))
+    //    {
+    //        std::size_t startF = std::string::npos;
+    //        std::size_t exePos = std::string::npos;
+    //        std::size_t diff = 0;
+
+    //        res = (char)Buffer;
+
+    //        std::cout << "proc: "<< res << "\r\n";
+
+    //        // At this point, buffer contains the full path to the executable
+    //        for (int i = 0; i < MAX_PATH; i++) {
+
+    //            if ((char)Buffer[i] == '\\') {
+
+    //                startF = i;
+    //            }
+
+    //            if ( MAX_PATH >= i+3 && (char)Buffer[i] == '.' && (char)Buffer[i+1] == 'e' && (char)Buffer[i+2] == 'x' && (char)Buffer[i+3] == 'e'){
+
+    //                exePos = i;
+    //                break;
+    //            }
+    //        }
+
+    //        if (startF != std::string::npos && exePos != std::string::npos) {
+    //            diff = exePos - startF;
+
+    //            //std::cout << "startF " << startF <<" exepos: " << exePos << " diff " << diff << "\r\n";
+
+    //            for (int i = startF+1; i <= startF+diff+3; i++)
+    //            {
+    //                //std::cout << (char)Buffer[i];
+    //                res.push_back((char)Buffer[i]);
+    //            }
+
+    //            //std::cout << "\r\n";
+
+    //        }
+
+
+    //    }
+    //    else
+    //    {
+    //        // You better call GetLastError() here
+    //    }
+    //    CloseHandle(Handle);
+    //}
+    //return res;
 }

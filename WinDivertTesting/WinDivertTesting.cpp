@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
 	//	return 0;
 	//}
 
-	DivertManager dm("discord.exe", true);
+	DivertManager dm("EpicGamesLauncher.exe", true);
 
 	//while (true)
 	//{
