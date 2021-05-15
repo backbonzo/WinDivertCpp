@@ -34,6 +34,8 @@ public:
 	DivertManager(std::string, bool);
 	~DivertManager();
 
+	void addPortToList(UINT32);
+
 	std::string getProcessNameByPid(UINT32);
 	void startThreads();
 

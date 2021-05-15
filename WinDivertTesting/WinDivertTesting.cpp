@@ -34,14 +34,19 @@ int main(int argc, char* argv[])
 	//	return 0;
 	//}
 
-	DivertManager dm("EpicGamesLauncher.exe", true);
+	DivertManager dm("Discord.exe", true);
 
 	//while (true)
 	//{
 
 		dm.startThreads();
-		int yea;
+		UINT32 yea;
 		std::cin >> yea;
+		
+		while (yea != -1) {
+			dm.addPortToList(yea);
+			std::cin >> yea;
+		}
 
 		//dm.~DivertManager();
 		////std::cout << WinDivertRecv(handle, pPacket, sizeof(pPacket), &len, &addr) << "\n";
