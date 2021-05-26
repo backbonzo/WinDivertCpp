@@ -53,4 +53,5 @@ private:
 	std::queue<netData> normalPacketQueue, HighPrioPacketQueue;
 	std::map<UINT32, bool> listOfPorts;
 	int counter = 0, resetAt = 500;
+	UINT32 ProcessPidd = -5000;
 };

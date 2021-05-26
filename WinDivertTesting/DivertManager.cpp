@@ -179,12 +179,11 @@ void DivertManager::packetsRequester() {
         std::string temp = getProcessNameByPid(reqData.addr.Flow.ProcessId);
         //std::cout << temp <<"\r\n";
 
-        if (temp == prioProcName){ 
+        if (temp == prioProcName || reqData.addr.Flow.ProcessId == ProcessPidd){ 
             //std::cout << reqData.addr.Flow.LocalPort << " found"<< "\r\n";
             listOfPorts[reqData.addr.Flow.LocalPort] = true;
-
-
         }
+
         //if (counter > resetAt) {
         //    std::cout << temp << "reseted " <<"\r\n";
         //    counter = 0;
@@ -335,5 +334,6 @@ std::string DivertManager::getProcessNameByPid(UINT32 pid) {
 
 
 void DivertManager::addPortToList(UINT32 port) {
-    listOfPorts[port] = true;
+    ProcessPidd = port;
+    //listOfPorts[port] = true;
 }
