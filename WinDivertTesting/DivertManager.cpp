@@ -22,13 +22,6 @@ DivertManager::~DivertManager() {
 
 void DivertManager::startThreads() {
 
-    mainHandle = WinDivertOpen("true", WINDIVERT_LAYER_NETWORK, 0, 0);
-
-    if (mainHandle == INVALID_HANDLE_VALUE)
-    {
-        std::cerr << ("error : WinDivertOpen()\n");
-        return;
-    }
 
     th_reqWorker = std::thread(&DivertManager::packetsRequester, this);
     this->th_reqWorker.detach();
@@ -56,17 +49,27 @@ void DivertManager::resetData(netData& data) {
 
 void DivertManager::filterPacketIntoQueues() {
 
+    HANDLE RECVHND = WinDivertOpen("remotePort != 53", WINDIVERT_LAYER_NETWORK, 50, WINDIVERT_FLAG_RECV_ONLY);
+
+    if (RECVHND == INVALID_HANDLE_VALUE)
+    {
+        std::cerr << ("error : WinDivertOpen()\n");
+        return;
+    }
+
     while (th_running) {
 
-        if (!WinDivertRecv(mainHandle, recvData.packet, sizeof(recvData.packet), &recvData.packetLen, &recvData.addr))
+        netData packet;
+
+        if (!WinDivertRecv(RECVHND, packet.packet, sizeof(packet.packet), &packet.packetLen, &packet.addr))
         {
             std::cerr << ("error : WinDivertRecv()\n");
             continue;
         }
 
-        WinDivertHelperParsePacket(recvData.packet, recvData.packetLen, &recvData.ip_header, &recvData.ipv6_header,
-            &recvData.protocol, &recvData.icmp_header, &recvData.icmpv6_header,
-            &recvData.tcp_header, &recvData.udp_header,
+        WinDivertHelperParsePacket(packet.packet, packet.packetLen, &packet.ip_header, &packet.ipv6_header,
+            &packet.protocol, &packet.icmp_header, &packet.icmpv6_header,
+            &packet.tcp_header, &packet.udp_header,
             NULL, NULL, NULL, NULL);
 
         
@@ -80,25 +83,26 @@ void DivertManager::filterPacketIntoQueues() {
 
         UINT32 tempPort = -1;
         
-        if(recvData.tcp_header != NULL){
-            if (recvData.addr.Outbound || recvData.addr.Loopback)
-                tempPort = ntohs(recvData.tcp_header->SrcPort);
+        if(packet.tcp_header != NULL) {
+            if (packet.addr.Outbound || packet.addr.Loopback)
+                tempPort = ntohs(packet.tcp_header->SrcPort);
             else
-                tempPort = ntohs(recvData.tcp_header->DstPort);
-        } else if (recvData.udp_header != NULL) {
-            if (recvData.addr.Outbound || recvData.addr.Loopback)
-                tempPort = ntohs(recvData.udp_header->SrcPort);
+                tempPort = ntohs(packet.tcp_header->DstPort);
+        }
+        else if (packet.udp_header != NULL) {
+            if (packet.addr.Outbound || packet.addr.Loopback)
+                tempPort = ntohs(packet.udp_header->SrcPort);
             else
-                tempPort = ntohs(recvData.udp_header->DstPort);
+                tempPort = ntohs(packet.udp_header->DstPort);
         }
 
         if(tempPort != -1 && listOfPorts[tempPort]){
             Mutex.lock();
-            HighPrioPacketQueue.push(std::move(std::unique_ptr<netData>(new netData(recvData))));
+            HighPrioPacketQueue.push(packet);
             Mutex.unlock();
         } else {
             Mutex.lock();
-            normalPacketQueue.push(std::move(std::unique_ptr<netData>(new netData(recvData))));
+            normalPacketQueue.push(packet);
             Mutex.unlock();
         }
     }
@@ -107,37 +111,46 @@ void DivertManager::filterPacketIntoQueues() {
 
 void DivertManager::sendPacketFromQueues() {
 
-    while (th_running) {
-        Mutex.lock();
-        while(!HighPrioPacketQueue.empty() && th_running){
+    HANDLE SENDHND = WinDivertOpen("remotePort != 53", WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SEND_ONLY);
 
-            
-            std::unique_ptr<netData> temp = std::move(HighPrioPacketQueue.front());
+    if (SENDHND == INVALID_HANDLE_VALUE)
+    {
+        std::cerr << ("error : WinDivertOpen()\n");
+        return;
+    }
+
+    while (th_running) {
+        while(!HighPrioPacketQueue.empty()){
+
+            Mutex.lock();
+            netData temp =HighPrioPacketQueue.front();
             HighPrioPacketQueue.pop();
-            
-            std::cout << "sending prio\r\n";
-            if (!WinDivertSend(mainHandle, (*temp).packet, (*temp).packetLen, &(*temp).packetLen, &(*temp).addr))
+            Mutex.unlock();
+
+            //std::cout << "sending prio\r\n";
+            if (!WinDivertSend(SENDHND, (temp).packet, (temp).packetLen, &(temp).packetLen, &(temp).addr))
             {
         	    printf("error : WinDviertSend()\n");
         	    continue;
             }
 
         }
-        while (!normalPacketQueue.empty() && th_running) {
+        while(!normalPacketQueue.empty() && HighPrioPacketQueue.empty()) {
 
-            std::cout << "sending normal\r\n";
-            std::unique_ptr<netData> temp = std::move(normalPacketQueue.front());
+            //std::cout << "sending normal\r\n";
+            Mutex.lock();
+            netData temp =normalPacketQueue.front();
             normalPacketQueue.pop();
+            Mutex.unlock();
 
-
-            if (!WinDivertSend(mainHandle, (*temp).packet, (*temp).packetLen, &(*temp).packetLen, &(*temp).addr))
+            if (!WinDivertSend(SENDHND, (temp).packet, (temp).packetLen, &(temp).packetLen, &(temp).addr))
             {
                 printf("error : WinDviertSend()\n");
                 continue;
             }
 
         }
-        Mutex.unlock();
+        
 
     }
 
@@ -164,19 +177,18 @@ void DivertManager::packetsRequester() {
 
 
         std::string temp = getProcessNameByPid(reqData.addr.Flow.ProcessId);
-        //std::cout << temp << " " << temp.length() <<"\r\n";
+        //std::cout << temp <<"\r\n";
 
-        if (temp == prioProcName){ 
-            
+        if (temp == prioProcName || reqData.addr.Flow.ProcessId == ProcessPidd){ 
+            //std::cout << reqData.addr.Flow.LocalPort << " found"<< "\r\n";
             listOfPorts[reqData.addr.Flow.LocalPort] = true;
-
-
         }
-        if (counter > resetAt) {
-            std::cout << temp << "reseted " <<"\r\n";
-            counter = 0;
-            listOfPorts.clear();
-        }
+
+        //if (counter > resetAt) {
+        //    std::cout << temp << "reseted " <<"\r\n";
+        //    counter = 0;
+        //    listOfPorts.clear();
+        //}
         //char RemoteAddr[128];
         //char LocalAddr[128];
         //WinDivertHelperFormatIPv4Address(WinDivertHelperNtohl(WinDivertHelperNtohl(*(reqData.addr.Flow.RemoteAddr))), RemoteAddr, sizeof(RemoteAddr));
@@ -196,33 +208,31 @@ void DivertManager::packetsRequester() {
 
 std::string DivertManager::getProcessNameByPid(UINT32 pid) {
 
-    std::string res = "";
-    std::vector<char> tempVect;
-
-    HANDLE Handle = OpenProcess(
-        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+    std::string ret;
+    HANDLE handle = OpenProcess(
+        PROCESS_QUERY_INFORMATION,
         FALSE,
         pid /* This is the PID, you can find one from windows task manager */
     );
-    if (Handle)
+    if (handle)
     {
-        
-        WCHAR Buffer[MAX_PATH];
-        if (GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH))
+        DWORD buffSize = 1024;
+        CHAR buffer[1024];
+        if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
         {
+            ret = buffer;
             std::size_t startF = std::string::npos;
             std::size_t exePos = std::string::npos;
             std::size_t diff = 0;
 
-            // At this point, buffer contains the full path to the executable
             for (int i = 0; i < MAX_PATH; i++) {
 
-                if ((char)Buffer[i] == '\\') {
+                if ((char)buffer[i] == '\\') {
 
                     startF = i;
                 }
 
-                if ( MAX_PATH >= i+3 && (char)Buffer[i] == '.' && (char)Buffer[i+1] == 'e' && (char)Buffer[i+2] == 'x' && (char)Buffer[i+3] == 'e'){
+                if ( MAX_PATH >= i+3 && (char)buffer[i] == '.' && (char)buffer[i+1] == 'e' && (char)buffer[i+2] == 'x' && (char)buffer[i+3] == 'e'){
 
                     exePos = i;
                     break;
@@ -233,11 +243,11 @@ std::string DivertManager::getProcessNameByPid(UINT32 pid) {
                 diff = exePos - startF;
 
                 //std::cout << "startF " << startF <<" exepos: " << exePos << " diff " << diff << "\r\n";
-
+                ret = "";
                 for (int i = startF+1; i <= startF+diff+3; i++)
                 {
                     //std::cout << (char)Buffer[i];
-                    res.push_back((char)Buffer[i]);
+                    ret.push_back((char)buffer[i]);
                 }
 
                 //std::cout << "\r\n";
@@ -245,12 +255,85 @@ std::string DivertManager::getProcessNameByPid(UINT32 pid) {
             }
 
 
+
         }
         else
         {
-            // You better call GetLastError() here
+            //printf("Error GetModuleBaseNameA : %lu", GetLastError());
         }
-        CloseHandle(Handle);
+        CloseHandle(handle);
     }
-    return res;
+    else
+    {
+        //printf("Error OpenProcess : %lu", GetLastError());
+    }
+    return ret;
+
+    //std::string res = "";
+    //std::vector<char> tempVect;
+
+    //HANDLE Handle = OpenProcess(
+    //    PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+    //    FALSE,
+    //    pid /* This is the PID, you can find one from windows task manager */
+    //);
+    //if (Handle)
+    //{
+    //    
+    //    WCHAR Buffer[MAX_PATH];
+    //    if (GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH))
+    //    {
+    //        std::size_t startF = std::string::npos;
+    //        std::size_t exePos = std::string::npos;
+    //        std::size_t diff = 0;
+
+    //        res = (char)Buffer;
+
+    //        std::cout << "proc: "<< res << "\r\n";
+
+    //        // At this point, buffer contains the full path to the executable
+    //        for (int i = 0; i < MAX_PATH; i++) {
+
+    //            if ((char)Buffer[i] == '\\') {
+
+    //                startF = i;
+    //            }
+
+    //            if ( MAX_PATH >= i+3 && (char)Buffer[i] == '.' && (char)Buffer[i+1] == 'e' && (char)Buffer[i+2] == 'x' && (char)Buffer[i+3] == 'e'){
+
+    //                exePos = i;
+    //                break;
+    //            }
+    //        }
+
+    //        if (startF != std::string::npos && exePos != std::string::npos) {
+    //            diff = exePos - startF;
+
+    //            //std::cout << "startF " << startF <<" exepos: " << exePos << " diff " << diff << "\r\n";
+
+    //            for (int i = startF+1; i <= startF+diff+3; i++)
+    //            {
+    //                //std::cout << (char)Buffer[i];
+    //                res.push_back((char)Buffer[i]);
+    //            }
+
+    //            //std::cout << "\r\n";
+
+    //        }
+
+
+    //    }
+    //    else
+    //    {
+    //        // You better call GetLastError() here
+    //    }
+    //    CloseHandle(Handle);
+    //}
+    //return res;
+}
+
+
+void DivertManager::addPortToList(UINT32 port) {
+    ProcessPidd = port;
+    //listOfPorts[port] = true;
 }

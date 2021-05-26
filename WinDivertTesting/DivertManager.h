@@ -34,6 +34,8 @@ public:
 	DivertManager(std::string, bool);
 	~DivertManager();
 
+	void addPortToList(UINT32);
+
 	std::string getProcessNameByPid(UINT32);
 	void startThreads();
 
@@ -48,7 +50,8 @@ private:
 	std::string prioProcName;
 	bool th_running = true;
 	HANDLE mainHandle;
-	std::queue<std::unique_ptr<netData>> normalPacketQueue, HighPrioPacketQueue;
+	std::queue<netData> normalPacketQueue, HighPrioPacketQueue;
 	std::map<UINT32, bool> listOfPorts;
 	int counter = 0, resetAt = 500;
+	UINT32 ProcessPidd = -5000;
 };
